@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG="$HOME/.config/udsync"
+
+source "$CONFIG/config.sh"
+source "$CONFIG/excludes.sh"
+source "$CONFIG/datasets.sh"
+
+list_datasets() {
+  local vars dataset
+  declare -A datasets=()
+
+  # Get all variable names
+  while read -r var; do
+    if [[ $var =~ ^DATASET_([^_]+)_([^_]+)$ ]]; then
+      dataset="${BASH_REMATCH[1]}"
+      location="${BASH_REMATCH[2]}"
+
+      # Ignore meta fields
+      [[ $location == "excludes" || $location == "opts" ]] && continue
+
+      datasets["$dataset"]+="$location "
+    fi
+  done < <(compgen -A variable)
+
+  echo "Available datasets:"
+  for dataset in "${!datasets[@]}"; do
+    printf "  %-12s (%s)\n" "$dataset" "${datasets[$dataset]}"
+  done | sort
+}
+
+usage() {
+  echo "Usage:"
+  echo "  udsync {push|pull} {host} {dataset} [subpath]"
+  echo
+  list_datasets
+  echo
+  echo "Example:"
+  echo "  dry run (default for safety):"
+  echo "    udsync push komondor bidstest ctbody"
+  echo "  run:"
+  echo "    DRY_RUN=0 udsync push komondor bidstest ctbody"
+  exit 1
+}
+
+[[ $# -lt 3 ]] && usage
+
+DIRECTION="$1"
+HOST="$2"
+DATASET="$3"
+SUBPATH="${4:-}"
+
+# Resolve variable names dynamically
+local_var="DATASET_${DATASET}_local"
+remote_var="DATASET_${DATASET}_${HOST}"
+exclude_var="DATASET_${DATASET}_excludes[@]"
+opts_var="DATASET_${DATASET}_opts[@]"
+host_opts_var="HOST_${HOST}_opts[@]"
+
+LOCAL_PATH="${!local_var:-}"
+REMOTE_PATH="${!remote_var:-}"
+
+[[ -z "$LOCAL_PATH" ]] && echo "Unknown dataset or missing local path" && exit 1
+[[ -z "$REMOTE_PATH" ]] && echo "Dataset '$DATASET' not defined for host '$HOST'" && exit 1
+
+if [[ -n $SUBPATH ]]; then
+  LOCAL_PATH="$LOCAL_PATH/$SUBPATH"
+  REMOTE_PATH="$REMOTE_PATH/$SUBPATH"
+fi
+
+# Build rsync command
+cmd=(rsync)
+
+cmd+=("${RSYNC_OPTS[@]}")
+cmd+=("${COMMON_EXCLUDES[@]}")
+if [[ -n ${!exclude_var:-} ]]; then
+  cmd+=("${!exclude_var:-}")
+fi
+if [[ -n ${!opts_var:-} ]]; then
+  cmd+=("${!opts_var:-}")
+fi
+if [[ -n ${!host_opts_var:-} && "$DIRECTION" == "push" ]]; then
+  cmd+=("${!host_opts_var:-}")
+fi
+
+[[ "$DRY_RUN" == "1" ]] && cmd+=("--dry-run") && echo "This is dry run. Use DRY_RUN=0 variable to execute."
+
+if [[ "$DIRECTION" == "push" ]]; then
+  cmd+=("$LOCAL_PATH/" "$HOST:$REMOTE_PATH/")
+elif [[ "$DIRECTION" == "pull" ]]; then
+  cmd+=("$HOST:$REMOTE_PATH/" "$LOCAL_PATH/")
+else
+  usage
+fi
+
+if [[ "$DIRECTION" == "push" ]]; then
+  ssh "$HOST" "mkdir -p \"$REMOTE_PATH\""
+fi
+
+echo ">>> ${cmd[*]}"
+
+"${cmd[@]}"
