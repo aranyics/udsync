@@ -6,11 +6,11 @@ The .config/udsync directory goes to $HOME/.config directory.
 Set up you dataset paths, rsync excludes and other options in datasets.sh.
 Configure you sites in config.sh. The set up hosts must be available in ~/.ssh/config, like:
 
-> Host <name>
->   HostName <ip or hostname>
->   User <username>
->   Port 22
->   IdentityFile <idfile>
+> Host \<name\> \
+> &nbsp;&nbsp;&nbsp;&nbsp;HostName \<ip or hostname\> \
+> &nbsp;&nbsp;&nbsp;&nbsp;User \<username\> \
+> &nbsp;&nbsp;&nbsp;&nbsp;Port 22 \
+> &nbsp;&nbsp;&nbsp;&nbsp;IdentityFile \<idfile\>
 
 
 The bin/ directory is exported in $PATH environment variable.
