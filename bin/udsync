@@ -97,6 +97,9 @@ fi
 if [[ "$DIRECTION" == "push" ]]; then
   ssh "$HOST" "mkdir -p \"$REMOTE_PATH\""
 fi
+if [[ "$DIRECTION" == "pull" ]]; then
+  mkdir -p $LOCAL_PATH
+fi
 
 echo ">>> ${cmd[*]}"
 
